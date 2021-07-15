@@ -5,27 +5,26 @@ import getWeb3 from "./getWeb3";
 import "./App.css";
 
 class App extends Component {
-  state = { storageValue: 0, web3: null, accounts: null, contract: null };
+  state = { loaded: false, tempValue: 0, storageValue: 0 };
 
   componentDidMount = async () => {
     try {
       // Get network provider and web3 instance.
-      const web3 = await getWeb3();
+      this.web3 = await getWeb3();
 
       // Use web3 to get the user's accounts.
-      const accounts = await web3.eth.getAccounts();
+      this.accounts = await this.web3.eth.getAccounts();
 
       // Get the contract instance.
-      const networkId = await web3.eth.net.getId();
-      const deployedNetwork = SimpleStorageContract.networks[networkId];
-      const instance = new web3.eth.Contract(
+      this.networkId = await this.web3.eth.net.getId();
+      this.contract = new this.web3.eth.Contract(
         SimpleStorageContract.abi,
-        deployedNetwork && deployedNetwork.address,
+        SimpleStorageContract.networks[this.networkId] && SimpleStorageContract.networks[this.networkId].address,
       );
 
-      // Set web3, accounts, and contract to the state, and then proceed with an
-      // example of interacting with the contract's methods.
-      this.setState({ web3, accounts, contract: instance }, this.runExample);
+      // Set the state and run getter function
+      this.setState({ loaded: true }, this.handleGetValue);
+
     } catch (error) {
       // Catch any errors for any of the above operations.
       alert(
@@ -35,21 +34,30 @@ class App extends Component {
     }
   };
 
-  runExample = async () => {
-    const { accounts, contract } = this.state;
+  handleInputChange = (event) => {
+    const target = event.target;
+    const value = target.type === "checkbox" ? target.checked : target.value;
+    const name = target.name;
+    this.setState({
+      [name]: value
+    });
+  }
 
-    // Stores a given value, 5 by default.
-    await contract.methods.set(5).send({ from: accounts[0] });
+  handleSetValue = async () => {
+    // Set the value to the contract
+    await this.contract.methods.set(this.state.tempValue).send({ from: this.accounts[0] });
+    this.handleGetValue();
+  }
 
-    // Get the value from the contract to prove it worked.
-    const response = await contract.methods.get().call();
-
+  handleGetValue = async () => {
+    // Get the value from the contract
+    const response = await this.contract.methods.get().call();
     // Update state with the result.
     this.setState({ storageValue: response });
-  };
+  }
 
   render() {
-    if (!this.state.web3) {
+    if (!this.state.loaded) {
       return <div>Loading Web3, accounts, and contract...</div>;
     }
     return (
@@ -57,13 +65,10 @@ class App extends Component {
         <h1>Good to Go!</h1>
         <p>Your Truffle Box is installed and ready.</p>
         <h2>Smart Contract Example</h2>
-        <p>
-          If your contracts compiled and migrated successfully, below will show
-          a stored value of 5 (by default).
-        </p>
-        <p>
-          Try changing the value stored on <strong>line 42</strong> of App.js.
-        </p>
+        Set stored value: <input type="text" name="tempValue" value={this.state.tempValue} onChange={this.handleInputChange} />
+        <button type="button" onClick={this.handleSetValue}>Set</button>
+        <br></br>
+        <br></br>
         <div>The stored value is: {this.state.storageValue}</div>
       </div>
     );
